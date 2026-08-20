@@ -22,56 +22,54 @@ export default async function handler(req, res) {
     const systemMsg = body.system ? [{ role: 'system', content: body.system }] : [];
     const allMessages = [...systemMsg, ...messages];
 
-    // Usar meta-llama/llama-3.3-70b-instruct:free — modelo gratuito mais capaz disponível em Agosto 2026
-    // Fallback: openrouter/auto selecciona automaticamente o melhor gratuito
-    const model = 'meta-llama/llama-3.3-70b-instruct:free';
+    // openrouter/auto selecciona automaticamente o melhor modelo gratuito disponível
+    // Sem quebrar quando modelos individuais são retirados
+    const models = [
+      'openrouter/auto',
+      'nousresearch/hermes-3-llama-3.1-70b:free',
+      'google/gemma-3-12b-it:free',
+      'openai/gpt-4o-mini:free',
+    ];
 
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-        'HTTP-Referer': 'https://simcoach.vercel.app',
-        'X-Title': 'SimCoach',
-      },
-      body: JSON.stringify({
-        model: model,
-        max_tokens: body.max_tokens || 1200,
-        messages: allMessages,
-        temperature: 0.3,
-      }),
-    });
+    let lastError = null;
+    for (const model of models) {
+      try {
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+            'HTTP-Referer': 'https://simcoach.vercel.app',
+            'X-Title': 'SimCoach',
+          },
+          body: JSON.stringify({
+            model,
+            max_tokens: body.max_tokens || 1200,
+            messages: allMessages,
+            temperature: 0.3,
+          }),
+        });
 
-    const data = await response.json();
+        const data = await response.json();
+        if (data.error) { lastError = data.error; continue; }
 
-    if (!response.ok || data.error) {
-      // Tentar fallback com outro modelo gratuito
-      const fallbackResp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-          'HTTP-Referer': 'https://simcoach.vercel.app',
-          'X-Title': 'SimCoach',
-        },
-        body: JSON.stringify({
-          model: 'meta-llama/llama-4-maverick:free',
-          max_tokens: body.max_tokens || 1200,
-          messages: allMessages,
-          temperature: 0.3,
-        }),
-      });
-      const fallbackData = await fallbackResp.json();
-      const text = fallbackData.choices?.[0]?.message?.content || JSON.stringify(fallbackData);
-      return res.status(200).json({ content: [{ type: 'text', text }] });
+        const text = data.choices?.[0]?.message?.content || '';
+        if (!text) { lastError = 'Empty response'; continue; }
+
+        return res.status(200).json({ content: [{ type: 'text', text }] });
+      } catch (e) {
+        lastError = e.message;
+        continue;
+      }
     }
 
-    const text = data.choices?.[0]?.message?.content || '';
-    return res.status(200).json({ content: [{ type: 'text', text }] });
+    return res.status(200).json({
+      content: [{ type: 'text', text: 'Nenhum modelo disponível. Erro: ' + JSON.stringify(lastError) }]
+    });
 
   } catch (err) {
     return res.status(200).json({
-      content: [{ type: 'text', text: 'Erro: ' + err.message }]
+      content: [{ type: 'text', text: 'Erro servidor: ' + err.message }]
     });
   }
 }
