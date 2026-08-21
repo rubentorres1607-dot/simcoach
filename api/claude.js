@@ -22,13 +22,14 @@ export default async function handler(req, res) {
     const systemMsg = body.system ? [{ role: 'system', content: body.system }] : [];
     const allMessages = [...systemMsg, ...messages];
 
-    // openrouter/auto selecciona automaticamente o melhor modelo gratuito disponível
-    // Sem quebrar quando modelos individuais são retirados
+    // Modelos gratuitos verificados em Agosto 2026 (por ordem de qualidade)
     const models = [
-      'openrouter/auto',
-      'nousresearch/hermes-3-llama-3.1-70b:free',
-      'google/gemma-3-12b-it:free',
-      'openai/gpt-4o-mini:free',
+      'z-ai/glm-5.2:free',
+      'nvidia/nemotron-3-ultra-550b-a55b:free',
+      'google/gemma-4-31b-it:free',
+      'nvidia/nemotron-3.5-lightning:free',
+      'openai/gpt-oss-20b:free',
+      'poolside/laguna-s-2.1:free',
     ];
 
     let lastError = null;
@@ -51,10 +52,10 @@ export default async function handler(req, res) {
         });
 
         const data = await response.json();
-        if (data.error) { lastError = data.error; continue; }
+        if (data.error) { lastError = data.error.message || JSON.stringify(data.error); continue; }
 
         const text = data.choices?.[0]?.message?.content || '';
-        if (!text) { lastError = 'Empty response'; continue; }
+        if (!text) { lastError = 'Empty response from ' + model; continue; }
 
         return res.status(200).json({ content: [{ type: 'text', text }] });
       } catch (e) {
@@ -64,7 +65,7 @@ export default async function handler(req, res) {
     }
 
     return res.status(200).json({
-      content: [{ type: 'text', text: 'Nenhum modelo disponível. Erro: ' + JSON.stringify(lastError) }]
+      content: [{ type: 'text', text: 'Nenhum modelo disponível: ' + lastError }]
     });
 
   } catch (err) {
