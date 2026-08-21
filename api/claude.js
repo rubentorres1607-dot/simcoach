@@ -21,33 +21,44 @@ export default async function handler(req, res) {
     const messages = body.messages || [];
     const systemMsg = body.system ? [{ role: 'system', content: body.system }] : [];
 
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-        'HTTP-Referer': 'https://simcoach.vercel.app',
-        'X-Title': 'SimCoach',
-      },
-      body: JSON.stringify({
-        model: 'z-ai/glm-5.2:free',
-        max_tokens: 1000,
-        temperature: 0.3,
-        messages: [...systemMsg, ...messages],
-      }),
-    });
+    // Tentar modelos gratuitos por ordem
+    const models = [
+      'nvidia/nemotron-3-ultra-550b-a55b:free',
+      'google/gemma-4-31b-it:free',
+      'nvidia/nemotron-3.5-lightning:free',
+      'openai/gpt-oss-20b:free',
+      'poolside/laguna-s-2.1:free',
+      'google/gemma-4-26b-a4b-it:free',
+    ];
 
-    const text_raw = await response.text();
-    let data;
-    try { data = JSON.parse(text_raw); } 
-    catch(e) { return res.status(200).json({ content: [{ type: 'text', text: 'Resposta inválida: ' + text_raw.substring(0,200) }] }); }
+    for (const model of models) {
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+          'HTTP-Referer': 'https://simcoach.vercel.app',
+          'X-Title': 'SimCoach',
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 1000,
+          temperature: 0.3,
+          messages: [...systemMsg, ...messages],
+        }),
+      });
 
-    if (data.error) {
-      return res.status(200).json({ content: [{ type: 'text', text: 'Erro modelo: ' + (data.error.message || JSON.stringify(data.error)) }] });
+      const raw = await response.text();
+      let data;
+      try { data = JSON.parse(raw); } catch(e) { continue; }
+
+      if (data.error || !data.choices?.[0]?.message?.content) continue;
+
+      const text = data.choices[0].message.content;
+      return res.status(200).json({ content: [{ type: 'text', text }] });
     }
 
-    const text = data.choices?.[0]?.message?.content || 'Sem resposta';
-    return res.status(200).json({ content: [{ type: 'text', text }] });
+    return res.status(200).json({ content: [{ type: 'text', text: 'Todos os modelos gratuitos indisponíveis de momento. Tenta novamente em alguns minutos.' }] });
 
   } catch (err) {
     return res.status(200).json({ content: [{ type: 'text', text: 'Erro: ' + err.message }] });
