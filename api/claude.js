@@ -7,7 +7,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: 'API key not configured' });
+  if (!apiKey) return res.status(200).json({ content: [{ type: 'text', text: 'Erro: API key não configurada' }] });
 
   try {
     let body = req.body;
@@ -20,57 +20,36 @@ export default async function handler(req, res) {
 
     const messages = body.messages || [];
     const systemMsg = body.system ? [{ role: 'system', content: body.system }] : [];
-    const allMessages = [...systemMsg, ...messages];
 
-    // Modelos gratuitos verificados em Agosto 2026 (por ordem de qualidade)
-    const models = [
-      'z-ai/glm-5.2:free',
-      'nvidia/nemotron-3-ultra-550b-a55b:free',
-      'google/gemma-4-31b-it:free',
-      'nvidia/nemotron-3.5-lightning:free',
-      'openai/gpt-oss-20b:free',
-      'poolside/laguna-s-2.1:free',
-    ];
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'HTTP-Referer': 'https://simcoach.vercel.app',
+        'X-Title': 'SimCoach',
+      },
+      body: JSON.stringify({
+        model: 'z-ai/glm-5.2:free',
+        max_tokens: 1000,
+        temperature: 0.3,
+        messages: [...systemMsg, ...messages],
+      }),
+    });
 
-    let lastError = null;
-    for (const model of models) {
-      try {
-        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-            'HTTP-Referer': 'https://simcoach.vercel.app',
-            'X-Title': 'SimCoach',
-          },
-          body: JSON.stringify({
-            model,
-            max_tokens: body.max_tokens || 1200,
-            messages: allMessages,
-            temperature: 0.3,
-          }),
-        });
+    const text_raw = await response.text();
+    let data;
+    try { data = JSON.parse(text_raw); } 
+    catch(e) { return res.status(200).json({ content: [{ type: 'text', text: 'Resposta inválida: ' + text_raw.substring(0,200) }] }); }
 
-        const data = await response.json();
-        if (data.error) { lastError = data.error.message || JSON.stringify(data.error); continue; }
-
-        const text = data.choices?.[0]?.message?.content || '';
-        if (!text) { lastError = 'Empty response from ' + model; continue; }
-
-        return res.status(200).json({ content: [{ type: 'text', text }] });
-      } catch (e) {
-        lastError = e.message;
-        continue;
-      }
+    if (data.error) {
+      return res.status(200).json({ content: [{ type: 'text', text: 'Erro modelo: ' + (data.error.message || JSON.stringify(data.error)) }] });
     }
 
-    return res.status(200).json({
-      content: [{ type: 'text', text: 'Nenhum modelo disponível: ' + lastError }]
-    });
+    const text = data.choices?.[0]?.message?.content || 'Sem resposta';
+    return res.status(200).json({ content: [{ type: 'text', text }] });
 
   } catch (err) {
-    return res.status(200).json({
-      content: [{ type: 'text', text: 'Erro servidor: ' + err.message }]
-    });
+    return res.status(200).json({ content: [{ type: 'text', text: 'Erro: ' + err.message }] });
   }
 }
