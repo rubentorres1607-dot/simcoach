@@ -18,47 +18,81 @@ export default async function handler(req, res) {
       body = JSON.parse(Buffer.concat(chunks).toString());
     }
 
-    const messages = body.messages || [];
-    const systemMsg = body.system ? [{ role: 'system', content: body.system }] : [];
+    const userMessages = body.messages || [];
 
-    // Tentar modelos gratuitos por ordem
+    // Injectar instrução no system para forçar texto simples
+    const systemContent = 'You are a sim racing engineer. IMPORTANT: Respond with plain text only. Do NOT use JSON, do NOT use code blocks, do NOT use curly braces. Use only markdown headers (##) and bullet points (-). Keep responses under 600 words.';
+
+    const messages = [
+      { role: 'system', content: systemContent },
+      ...userMessages
+    ];
+
     const models = [
       'nvidia/nemotron-3-ultra-550b-a55b:free',
       'google/gemma-4-31b-it:free',
       'nvidia/nemotron-3.5-lightning:free',
       'openai/gpt-oss-20b:free',
       'poolside/laguna-s-2.1:free',
-      'google/gemma-4-26b-a4b-it:free',
     ];
 
     for (const model of models) {
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-          'HTTP-Referer': 'https://simcoach.vercel.app',
-          'X-Title': 'SimCoach',
-        },
-        body: JSON.stringify({
-          model,
-          max_tokens: 1000,
-          temperature: 0.3,
-          messages: [...systemMsg, ...messages],
-        }),
-      });
+      try {
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+            'HTTP-Referer': 'https://simcoach.vercel.app',
+            'X-Title': 'SimCoach',
+          },
+          body: JSON.stringify({
+            model,
+            max_tokens: 800,
+            temperature: 0.4,
+            messages,
+          }),
+        });
 
-      const raw = await response.text();
-      let data;
-      try { data = JSON.parse(raw); } catch(e) { continue; }
+        const raw = await response.text();
+        let data;
+        try { data = JSON.parse(raw); } catch(e) { continue; }
 
-      if (data.error || !data.choices?.[0]?.message?.content) continue;
+        if (data.error) continue;
 
-      const text = data.choices[0].message.content;
-      return res.status(200).json({ content: [{ type: 'text', text }] });
+        let text = data.choices?.[0]?.message?.content || '';
+        if (!text) continue;
+
+        // Se o modelo gerou JSON mesmo assim, extrair só o texto
+        if (text.trim().startsWith('{')) {
+          try {
+            const parsed = JSON.parse(text);
+            // Tentar extrair campos de texto
+            const parts = [];
+            if (parsed.summary || parsed.sum) parts.push(parsed.summary || parsed.sum);
+            if (parsed.zones || parsed.z) {
+              const zones = parsed.zones || parsed.z || [];
+              zones.forEach(function(z) {
+                parts.push((z.cause || z.c || '') + ' → ' + (z.fix || z.f || ''));
+              });
+            }
+            if (parts.length > 0) {
+              text = parts.join('\n\n');
+            }
+          } catch(e) {
+            // não era JSON válido, usar texto como está
+          }
+        }
+
+        return res.status(200).json({ content: [{ type: 'text', text }] });
+      } catch(e) {
+        continue;
+      }
     }
 
-    return res.status(200).json({ content: [{ type: 'text', text: 'Todos os modelos gratuitos indisponíveis de momento. Tenta novamente em alguns minutos.' }] });
+    return res.status(200).json({
+      content: [{ type: 'text', text: 'Modelos gratuitos temporariamente indisponíveis. Tenta novamente em alguns minutos.' }]
+    });
 
   } catch (err) {
     return res.status(200).json({ content: [{ type: 'text', text: 'Erro: ' + err.message }] });
