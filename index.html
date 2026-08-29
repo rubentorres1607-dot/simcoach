@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SimCoach</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,sans-serif;background:#0d0d0d;color:#b0b8c8;font-size:12px}
+#app{display:flex;height:100vh}
+#sb{width:220px;min-width:180px;background:#111318;border-right:1px solid #1e2330;display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
+#sb-top{padding:10px 12px 8px;border-bottom:1px solid #1e2330}
+.logo{font-size:14px;font-weight:900;color:#e0e8f0;letter-spacing:-.03em}
+.logo b{color:#00aaff}
+#sb-upload{padding:8px 10px;border-bottom:1px solid #1e2330;display:flex;flex-direction:column;gap:4px}
+.ubtn{padding:6px 8px;border-radius:5px;border:none;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;width:100%;text-align:left;transition:.15s}
+.ubtn-blue{background:#1a3a6b;color:#60aaff}.ubtn-blue:hover{background:#1e4480}
+.ubtn-ghost{background:transparent;border:1px solid #1e2330;color:#607080}.ubtn-ghost:hover{background:#1a2030}
+#ref-ok{font-size:10px;color:#f59e0b;padding:2px 0;word-break:break-all}
+#sb-laps{flex:1;overflow-y:auto;padding:4px 0}
+.sb-ttl{padding:4px 12px;font-size:10px;color:#404858;text-transform:uppercase;letter-spacing:.08em;font-weight:700}
+.lap-row{display:flex;align-items:center;gap:6px;padding:3px 10px;cursor:pointer;transition:.15s;user-select:none}
+.lap-row:hover{background:#161c26}
+.lap-lbl{font-family:monospace;font-size:11px;flex:1;color:#7080a0}
+.lap-time{font-family:monospace;font-size:11px;color:#7080a0}
+.lap-row.on .lap-lbl,.lap-row.on .lap-time{color:#c8d8e8;font-weight:600}
+.lap-quick{display:flex;gap:3px;padding:4px 10px;border-top:1px solid #1e2330}
+.qbtn{flex:1;padding:3px;border-radius:4px;border:1px solid #1e2330;background:transparent;color:#506070;font-size:10px;cursor:pointer;font-family:inherit;transition:.15s}
+.qbtn:hover{background:#1a2030;color:#c0d0e0}
+#content{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+#sess-bar{padding:6px 14px;border-bottom:1px solid #1e2330;background:#0f1219;display:none;flex-shrink:0}
+#sess-bar.show{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.sess-title{font-size:13px;font-weight:700;color:#d0d8e8}
+.sess-meta{font-size:11px;color:#404858}
+.stat-pill{background:#161c26;border:1px solid #1e2330;border-radius:5px;padding:3px 10px;font-family:monospace;font-size:11px}
+.stat-pill span{color:#7080a0;font-size:10px;margin-right:4px}
+#charts-wrap{flex:1;overflow-y:auto;overflow-x:hidden}
+.cpanel{position:relative;border-bottom:1px solid #181e28;flex-shrink:0}
+.cpanel-lbl{position:absolute;left:48px;top:4px;font-size:9px;color:#404858;text-transform:uppercase;letter-spacing:.07em;font-weight:700;pointer-events:none;z-index:2}
+.cpanel canvas{display:block;width:100%!important}
+#analysis{padding:12px 16px;border-top:1px solid #1e2330;background:#0d0d0d;display:none;flex-shrink:0}
+#analysis.show{display:block}
+.az-title{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#404858;font-weight:700;margin-bottom:6px}
+.zone{display:grid;grid-template-columns:20px 1fr auto;gap:6px;align-items:center;background:#111318;border-left:2px solid #cc3333;padding:5px 8px;margin-bottom:4px;border-radius:0 5px 5px 0}
+.zone-n{color:#cc3333;font-weight:900;font-family:monospace;font-size:13px}
+.zone-loc{font-size:10px;color:#404858}
+.zone-det{font-size:11px}
+.zone-loss{font-family:monospace;font-weight:700;color:#cc3333;font-size:12px}
+.abtn{padding:6px 14px;border-radius:5px;border:none;background:#1a3a6b;color:#60aaff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:.15s}
+.abtn:hover{background:#1e4480}
+.abtn:disabled{opacity:.4;cursor:not-allowed}
+.lang-btn{padding:5px 10px;border:none;background:transparent;color:#607080;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;transition:.15s}
+.lang-btn.on{background:#1a3a6b;color:#60aaff}
+#ai-loading{display:none;align-items:center;gap:8px;color:#405060;font-size:12px;margin:8px 0}
+.spinner{width:14px;height:14px;border:2px solid #1e2330;border-top-color:#00aaff;border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+#ai-result{display:none;margin-top:8px}
+#ai-result.show{display:block}
+#ai-summary{background:#111318;border:1px solid #1e2330;border-left:3px solid #00aaff;border-radius:0 6px 6px 0;padding:10px 14px;margin-bottom:8px;font-size:12px;line-height:1.85;color:#b0b8c8}
+#ai-summary strong{color:#d0e8ff}
+#ai-sections .sec{background:#111318;border:1px solid #1e2330;border-radius:6px;overflow:hidden;margin-bottom:6px}
+#ai-sections .sec-hd{padding:6px 12px;border-bottom:1px solid #1e2330;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+#ai-sections .sec-bd{padding:8px 12px;font-size:12px;line-height:1.75;color:#b0b8c8}
+#ai-sections .sec-bd ul{margin:4px 0 0 14px}
+#ai-sections .sec-bd li{margin-bottom:3px}
+#ai-sections strong{color:#e0e8f0}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:#0d0d0d}
+::-webkit-scrollbar-thumb{background:#1e2330;border-radius:2px}
+</style>
+</head>
+<body>
+<div id="app">
+<div id="sb">
+  <div id="sb-top"><div class="logo">Sim<b>Coach</b></div></div>
+  <div id="sb-upload">
+    <button class="ubtn ubtn-blue" onclick="triggerUpload('ibt')">+ Add IBT Files</button>
+    <button class="ubtn ubtn-ghost" onclick="triggerUpload('csv')">📊 Add Reference CSV</button>
+    <div id="ref-ok"></div>
+  </div>
+  <div id="sb-laps">
+    <div class="sb-ttl">Laps</div>
+    <div id="lap-list"></div>
+    <div class="lap-quick" id="lap-quick" style="display:none">
+      <button class="qbtn" onclick="selAll()">All</button>
+      <button class="qbtn" onclick="selNone()">None</button>
+      <button class="qbtn" onclick="selTop(3)">Top3</button>
+      <button class="qbtn" onclick="selTop(5)">Top5</button>
+    </div>
+  </div>
+</div>
+<div id="content">
+  <div id="sess-bar">
+    <div><div class="sess-title" id="sess-title"></div><div class="sess-meta" id="sess-meta"></div></div>
+    <div class="stat-pill"><span>BEST</span><b id="st-best" style="color:#00cc66"></b></div>
+    <div class="stat-pill"><span>AVG</span><b id="st-avg"></b></div>
+    <div class="stat-pill"><span>GAP</span><b id="st-gap" style="color:#f59e0b"></b></div>
+    <div class="stat-pill"><span>σ</span><b id="st-std"></b></div>
+  </div>
+  <div id="charts-wrap">
+    <div class="cpanel" style="height:180px"><div class="cpanel-lbl">Speed [km/h]</div><canvas id="c-speed" height="180"></canvas></div>
+    <div class="cpanel" style="height:140px"><div class="cpanel-lbl">Throttle [%] / Brake [%] (neg)</div><canvas id="c-tb" height="140"></canvas></div>
+    <div class="cpanel" style="height:100px"><div class="cpanel-lbl">Brake (Right) / Clutch (Left)</div><canvas id="c-gear" height="100"></canvas></div>
+    <div class="cpanel" style="height:130px"><div class="cpanel-lbl">Steering Wheel Angle [deg]</div><canvas id="c-steer" height="130"></canvas></div>
+    <div class="cpanel" style="height:150px"><div class="cpanel-lbl">Lap Time Delta [s]</div><canvas id="c-delta" height="150"></canvas></div>
+  </div>
+  <div id="analysis">
+    <div class="az-title">Loss Zones</div>
+    <div id="zones"></div>
+    <div class="az-title" style="margin-top:14px">AI Coaching</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+      <div style="display:flex;border:1px solid #1e2330;border-radius:5px;overflow:hidden">
+        <button class="lang-btn on" id="lang-pt" onclick="setLang('pt')">PT</button>
+        <button class="lang-btn" id="lang-en" onclick="setLang('en')">EN</button>
+      </div>
+      <button class="abtn" id="btn-coach" onclick="doCoach()">🏁 Analisar com IA</button>
+    </div>
+    <div id="ai-loading"><div class="spinner"></div><span id="ai-loading-txt">O engenheiro virtual está a analisar...</span></div>
+    <div id="ai-result">
+      <div id="ai-summary"></div>
+      <div id="ai-sections"></div>
+    </div>
+  </div>
+</div>
+</div>
+<script>
+// ── Globals ─────────────────────────────────────────────────────
+var sessions=[], ai=-1, ref=null, refN='';
+var lapActive={};
+var lapColors={}, lapActive={}, refActive=true;
+var charts={speed:null,tb:null,gear:null,steer:null,delta:null};
+var coachLang='pt';
+var N=500;
+var PALETTE=['#00eeff','#ff2266','#ffee00','#00ff55','#ff7700','#dd00ff','#ff0000','#00ffaa','#ff9900','#0099ff','#ff00cc','#aaff00','#ff4400','#00ffff','#ff00ff','#ffff00','#00ff00'];
+
+// ── Upload ───────────────────────────────────────────────────────
+function triggerUpload(type){
+  var inp=document.createElement('input');
+  inp.type='file';
+  if(type==='ibt'){inp.accept='.ibt';inp.multiple=true;inp.onchange=function(){loadIBT(this.files);};}
+  else{inp.accept='.csv';inp.onchange=function(){loadCSV(this.files[0]);};}
+  document.body.appendChild(inp);inp.click();
+  setTimeout(function(){if(inp.parentNode)inp.parentNode.removeChild(inp);},60000);
+}
+document.addEventListener('dragover',function(e){e.preventDefault();});
+document.addEventListener('drop',function(e){
+  e.preventDefault();
+  var files=[].slice.call(e.dataTransfer.files);
+  var ibts=files.filter(function(f){return f.name.endsWith('.ibt');});
+  var csv=files.find(function(f){return f.name.endsWith('.csv');});
+  if(ibts.length)loadIBT(ibts);
+  if(csv)loadCSV(csv);
+});
+
+// ── Parse IBT ────────────────────────────────────────────────────
+function loadIBT(files){
+  [].slice.call(files).forEach(function(file){
+    if(!file.name.endsWith('.ibt'))return;
+    var r=new FileReader();
+    r.onload=function(e){
+      try{
+        var s=parseIBT(e.target.result,file.name);
+        sessions.push(s);
+        s.segs.forEach(function(seg,i){
+          if(!lapColors[seg.lapLabel])lapColors[seg.lapLabel]=PALETTE[Object.keys(lapColors).length%PALETTE.length];
+          lapActive[seg.lapLabel]=true;
+        });
+        renderSidebar();
+        if(sessions.length===1)selectSess(0);
+      }catch(err){alert('Error: '+err.message);console.error(err);}
+    };
+    r.readAsArrayBuffer(file);
+  });
+}
+
+function parseIBT(buf,fname){
+  var dv=new DataView(buf),u8=new Uint8Array(buf);
+  var sio=dv.getInt32(20,true),sil=dv.getInt32(16,true);
+  var nv=dv.getInt32(24,true),vho=dv.getInt32(28,true);
+  var bl=dv.getInt32(36,true),src=dv.getInt32(140,true);
+  var dbo=dv.getInt32(52,true);
+  var yaml='';
+  for(var i=0;i<sil&&u8[sio+i]!==0;i++)yaml+=String.fromCharCode(u8[sio+i]);
+  var meta=parseYAML(yaml);
+  var TYPE={0:'char',1:'bool',2:'int',3:'bitfield',4:'float',5:'double'};
+  var BYTES={char:1,bool:1,int:4,bitfield:4,float:4,double:8};
+  var vars={};
+  for(var i=0;i<nv;i++){
+    var base=vho+i*144,type=TYPE[dv.getInt32(base,true)]||'float';
+    var voff=dv.getInt32(base+4,true),name='';
+    for(var j=0;j<32&&u8[base+16+j]!==0;j++)name+=String.fromCharCode(u8[base+16+j]);
+    vars[name]={type:type,offset:voff};
+  }
+  function readCh(name){
+    var v=vars[name];if(!v)return null;
+    var out=new Float64Array(src);
+    for(var s=0;s<src;s++){
+      var pos=dbo+s*bl+v.offset;
+      if(v.type==='double')out[s]=dv.getFloat64(pos,true);
+      else if(v.type==='float')out[s]=dv.getFloat32(pos,true);
+      else if(v.type==='int'||v.type==='bitfield')out[s]=dv.getInt32(pos,true);
+      else out[s]=u8[pos];
+    }
+    return out;
+  }
+  var ch={};
+  ['LapDistPct','SessionTime','Lap','Speed','Throttle','Brake','Gear','SteeringWheelAngle'].forEach(function(n){ch[n]=readCh(n);});
+  var segs=segLaps(ch);
+  var best=null;
+  segs.forEach(function(s){if(!best||s.lapTime<best.lapTime)best=s;});
+  return {name:fname,meta:meta,channels:ch,segs:segs,best:best,trackLen:meta.trackLenM||2600};
+}
+
+function parseYAML(yaml){
+  function get(k){var m=yaml.match(new RegExp(k+':\\s*(.+)'));return m?m[1].trim():'';}
+  var idx=parseInt(get('DriverCarIdx'))||0;
+  var track=get('TrackDisplayName')||get('TrackName')||'?';
+  var tlen=parseFloat(get('TrackLength'))||0;
+  var car='?',driver='?';
+  var re=/CarIdx:\s*(\d+)[\s\S]*?CarScreenName:\s*(.+?)[\n\r][\s\S]*?UserName:\s*(.+)/g,m;
+  while((m=re.exec(yaml))!==null)if(parseInt(m[1])===idx){car=m[2].trim();driver=m[3].trim();break;}
+  if(car==='?'){var m2=yaml.match(/CarScreenName:\s*(.+)/);if(m2)car=m2[1].trim();}
+  if(driver==='?'){var m3=yaml.match(/UserName:\s*(.+)/);if(m3)driver=m3[1].trim();}
+  return {track:track,car:car,driver:driver,trackLenM:tlen*1000};
+}
+
+function segLaps(ch){
+  var pct=ch.LapDistPct,t=ch.SessionTime,lap=ch.Lap,n=pct.length;
+  var resets=[0];
+  for(var i=1;i<n;i++)if(pct[i]-pct[i-1]<-0.5)resets.push(i);
+  resets.push(n);
+  var segs=[];
+  for(var i=0;i<resets.length-1;i++){
+    var s=resets[i],e=resets[i+1];
+    if(e-s<10)continue;
+    var lt=t[e-1]-t[s];
+    if(lt<20||lt>600)continue;
+    var cnt={},keys,best;
+    for(var j=s;j<e;j++){var l=lap[j];cnt[l]=(cnt[l]||0)+1;}
+    keys=Object.keys(cnt);best=keys[0];
+    for(var k=1;k<keys.length;k++)if(cnt[keys[k]]>cnt[best])best=keys[k];
+    segs.push({s:s,e:e,lapTime:lt,lapLabel:parseInt(best)});
+  }
+  return segs;
+}
+
+function alignSeg(ch,seg){
+  var s=seg.s,e=seg.e,grid=[];
+  for(var i=0;i<N;i++)grid.push(i/(N-1));
+  function interp(arr){
+    var xp=[],yp=[],seen={};
+    for(var i=s;i<e;i++){
+      var xi=ch.LapDistPct[i],k=xi.toFixed(6);
+      if(seen[k])continue;seen[k]=1;
+      xp.push(xi);yp.push(typeof arr==='function'?arr(i):arr[i]);
+    }
+    return grid.map(function(gx){
+      if(!xp.length)return 0;
+      if(gx<=xp[0])return yp[0];
+      if(gx>=xp[xp.length-1])return yp[xp.length-1];
+      var lo=0,hi=xp.length-1;
+      while(hi-lo>1){var m=(lo+hi)>>1;if(xp[m]<=gx)lo=m;else hi=m;}
+      return yp[lo]+(gx-xp[lo])/(xp[hi]-xp[lo])*(yp[hi]-yp[lo]);
+    });
+  }
+  var t0=ch.SessionTime[s];
+  return {
+    pct:grid,
+    elapsed:interp(function(i){return ch.SessionTime[i]-t0;}),
+    speed:interp(ch.Speed),
+    throttle:interp(ch.Throttle),
+    brake:interp(ch.Brake),
+    gear:ch.Gear?interp(ch.Gear):null,
+    steer:ch.SteeringWheelAngle?interp(ch.SteeringWheelAngle):null
+  };
+}
+
+// ── CSV ──────────────────────────────────────────────────────────
+function loadCSV(file){
+  if(!file)return;
+  var r=new FileReader();
+  r.onload=function(e){
+    try{ref=parseCSV(e.target.result);refN=file.name;refActive=true;
+      document.getElementById('ref-ok').textContent='REF: '+file.name.substring(0,25);
+      renderSidebar();if(ai>=0)renderAll();
+    }catch(err){alert('CSV Error: '+err.message);}
+  };
+  r.readAsText(file);
+}
+
+function parseCSV(text){
+  var lines=text.trim().split(/\r?\n/),hi=0;
+  for(var i=0;i<Math.min(25,lines.length);i++){
+    if(lines[i].includes(',')&&/speed|dist|throttle|brake/i.test(lines[i])){hi=i;break;}
+  }
+  var headers=lines[hi].split(',').map(function(h){return h.trim().toLowerCase().replace(/['"]/g,'');});
+  function find(){
+    for(var a=0;a<arguments.length;a++){
+      var c=arguments[a].toLowerCase(),idx=headers.indexOf(c);
+      if(idx>=0)return idx;
+      for(var j=0;j<headers.length;j++)if(headers[j].includes(c))return j;
+    }
+    return -1;
+  }
+  var cols={dist:find('lapdistpct','distpct'),elapsed:find('laptime','time','elapsed','currentlaptime'),
+    speed:find('speed','velocity'),throttle:find('throttle'),brake:find('brake'),
+    gear:find('gear'),steer:find('steeringwheelangle','steering')};
+  var data={pct:[],elapsed:[],speed:[],throttle:[],brake:[],gear:[],steer:[]};
+  for(var i=hi+1;i<lines.length;i++){
+    var row=lines[i].split(',');if(row.length<3)continue;
+    function g(c){return c>=0?parseFloat(row[c])||0:0;}
+    data.pct.push(g(cols.dist));data.elapsed.push(g(cols.elapsed));
+    data.speed.push(g(cols.speed));data.throttle.push(g(cols.throttle));
+    data.brake.push(g(cols.brake));data.gear.push(g(cols.gear));data.steer.push(g(cols.steer));
+  }
+  var avgSpd=data.speed.reduce(function(a,b){return a+b;},0)/data.speed.length;
+  var sS=avgSpd<10?3.6:1;
+  var maxT=Math.max.apply(null,data.throttle),tS=maxT>2?0.01:1;
+  var maxB=Math.max.apply(null,data.brake),bS=maxB>2?0.01:1;
+  var maxD=Math.max.apply(null,data.pct),dS=maxD>2?1/maxD:1;
+  var grid=[];for(var i=0;i<N;i++)grid.push(i/(N-1));
+  function ia(xp,yp,sc){
+    sc=sc||1;var pairs=[],seen={};
+    for(var i=0;i<xp.length;i++){
+      var x=xp[i]*dS,y=yp[i]*sc,k=x.toFixed(6);
+      if(isFinite(x)&&isFinite(y)&&!seen[k]){seen[k]=1;pairs.push([x,y]);}
+    }
+    pairs.sort(function(a,b){return a[0]-b[0];});
+    return grid.map(function(gx){
+      if(!pairs.length)return 0;
+      if(gx<=pairs[0][0])return pairs[0][1];
+      if(gx>=pairs[pairs.length-1][0])return pairs[pairs.length-1][1];
+      var lo=0,hi=pairs.length-1;
+      while(hi-lo>1){var m=(lo+hi)>>1;if(pairs[m][0]<=gx)lo=m;else hi=m;}
+      return pairs[lo][1]+(gx-pairs[lo][0])/(pairs[hi][0]-pairs[lo][0])*(pairs[hi][1]-pairs[lo][1]);
+    });
+  }
+  return {pct:grid,elapsed:ia(data.pct,data.elapsed),speed:ia(data.pct,data.speed,sS),
+    throttle:ia(data.pct,data.throttle,tS),brake:ia(data.pct,data.brake,bS),
+    gear:ia(data.pct,data.gear),steer:ia(data.pct,data.steer)};
+}
+
+// ── Utils ────────────────────────────────────────────────────────
+function fmtT(s){var m=Math.floor(s/60),sec=(s%60).toFixed(3).padStart(6,'0');return m>0?m+':'+sec:parseFloat(sec).toFixed(3)+'s';}
+
+function lossZones(a,b,tl){
+  var delta=a.pct.map(function(_,i){return b.elapsed[i]-a.elapsed[i];});
+  var zones=[],si=null;
+  for(var i=1;i<delta.length;i++){
+    if(delta[i]-delta[i-1]>0){if(si===null)si=i-1;}
+    else if(si!==null){
+      var loss=delta[i-1]-delta[si];
+      if(loss>=0.08)zones.push({start:a.pct[si]*tl,end:a.pct[i-1]*tl,loss:loss,si:si,ei:i-1});
+      si=null;
+    }
+  }
+  return zones.sort(function(a,b){return b.loss-a.loss;}).slice(0,6);
+}
+
+// ── Sidebar ──────────────────────────────────────────────────────
+function renderSidebar(){
+  var s=sessions[ai];
+  var ll=document.getElementById('lap-list');ll.innerHTML='';
+  var lq=document.getElementById('lap-quick');
+  if(!s){lq.style.display='none';return;}
+  lq.style.display='flex';
+  if(ref){
+    var row=document.createElement('div');row.className='lap-row'+(refActive?' on':'');
+    var dot=document.createElement('div');dot.style.cssText='width:8px;height:8px;border-radius:50%;background:#ff3333;flex-shrink:0';
+    var cb=document.createElement('input');cb.type='checkbox';cb.checked=refActive;cb.style.cssText='width:13px;height:13px;cursor:pointer;accent-color:#ff3333';
+    cb.onchange=function(){refActive=this.checked;renderAll();};
+    var lbl=document.createElement('div');lbl.className='lap-lbl';lbl.textContent='REF';
+    var tm=document.createElement('div');tm.className='lap-time';tm.style.color='#ff6666';tm.textContent=refN.substring(0,10);
+    row.appendChild(cb);row.appendChild(dot);row.appendChild(lbl);row.appendChild(tm);
+    row.onclick=function(e){if(e.target.type==='checkbox')return;cb.checked=!cb.checked;refActive=cb.checked;renderAll();};
+    ll.appendChild(row);
+  }
+  var sorted=s.segs.slice().sort(function(a,b){return a.lapTime-b.lapTime;});
+  sorted.forEach(function(seg,i){
+    var isBest=seg===s.best,color=lapColors[seg.lapLabel]||'#aaa',active=lapActive[seg.lapLabel]!==false;
+    var row=document.createElement('div');row.className='lap-row'+(active?' on':'');
+    var cb=document.createElement('input');cb.type='checkbox';cb.checked=active;cb.style.cssText='width:13px;height:13px;cursor:pointer;flex-shrink:0;accent-color:'+color;cb.dataset.lap=seg.lapLabel;
+    cb.onchange=function(){lapActive[parseInt(this.dataset.lap)]=this.checked;renderSidebar();renderAll();};
+    var dot=document.createElement('div');dot.style.cssText='width:8px;height:8px;border-radius:50%;background:'+color+';flex-shrink:0';
+    var lbl=document.createElement('div');lbl.className='lap-lbl';lbl.textContent='L'+seg.lapLabel+(isBest?' ★':'');
+    var tm=document.createElement('div');tm.className='lap-time';tm.textContent=fmtT(seg.lapTime);
+    row.appendChild(cb);row.appendChild(dot);row.appendChild(lbl);row.appendChild(tm);
+    row.onclick=function(e){if(e.target.type==='checkbox')return;cb.checked=!cb.checked;lapActive[seg.lapLabel]=cb.checked;renderSidebar();renderAll();};
+    ll.appendChild(row);
+  });
+}
+
+function selAll(){var s=sessions[ai];if(!s)return;s.segs.forEach(function(seg){lapActive[seg.lapLabel]=true;});refActive=true;renderSidebar();renderAll();}
+function selNone(){var s=sessions[ai];if(!s)return;s.segs.forEach(function(seg){lapActive[seg.lapLabel]=false;});refActive=false;renderSidebar();renderAll();}
+function selTop(n){
+  var s=sessions[ai];if(!s)return;
+  s.segs.forEach(function(seg){lapActive[seg.lapLabel]=false;});
+  var sorted=s.segs.slice().sort(function(a,b){return a.lapTime-b.lapTime;});
+  sorted.slice(0,n).forEach(function(seg){lapActive[seg.lapLabel]=true;});
+  refActive=true;renderSidebar();renderAll();
+}
+
+function selectSess(i){ai=i;renderSidebar();renderAll();}
+
+// ── Render All ───────────────────────────────────────────────────
+function renderAll(){
+  var s=sessions[ai];if(!s)return;
+  document.getElementById('sess-bar').classList.add('show');
+  document.getElementById('analysis').classList.add('show');
+  document.getElementById('sess-title').textContent=s.meta.car+' @ '+s.meta.track;
+  document.getElementById('sess-meta').textContent=s.meta.driver+' · '+s.segs.length+' laps · '+(s.trackLen/1000).toFixed(2)+'km';
+  var times=s.segs.map(function(x){return x.lapTime;}).sort(function(a,b){return a-b;});
+  var best=times[0],avg=times.reduce(function(a,b){return a+b;},0)/times.length;
+  var clean=times.filter(function(t){return t<best*1.06;});
+  var std=Math.sqrt(clean.reduce(function(acc,t){return acc+(t-avg)*(t-avg);},0)/clean.length);
+  document.getElementById('st-best').textContent=fmtT(best);
+  document.getElementById('st-avg').textContent=fmtT(avg);
+  document.getElementById('st-gap').textContent='+'+(avg-best).toFixed(3)+'s';
+  document.getElementById('st-std').textContent=std.toFixed(3)+'s';
+  renderCharts(s);
+  renderZones(s);
+  document.getElementById('ai-result').style.display='none';
+  document.getElementById('ai-summary').innerHTML='';
+  document.getElementById('ai-sections').innerHTML='';
+}
+
+// ── Charts ───────────────────────────────────────────────────────
+function renderCharts(s){
+  var tl=s.trackLen,labels=[];
+  for(var i=0;i<N;i++)labels.push(((i/(N-1))*tl/1000).toFixed(2));
+  var segsShow=s.segs.filter(function(seg){return lapActive[seg.lapLabel]!==false;});
+  var showRef=ref&&refActive;
+  var bestAl=s.best?alignSeg(s.channels,s.best):null;
+  var aligned=segsShow.map(function(seg){return {seg:seg,al:alignSeg(s.channels,seg),color:lapColors[seg.lapLabel]||'#aaa'};});
+  function line(data,color,w,dash){return {data:data,borderColor:color,borderWidth:w||1.5,pointRadius:0,tension:.1,borderDash:dash||[],fill:false,label:''};}
+  // Speed
+  var dsSpd=[];
+  if(showRef)dsSpd.push(line(ref.speed,'#ff3333',2,[4,3]));
+  aligned.forEach(function(x){dsSpd.push(line(x.al.speed.map(function(v){return+(v*3.6).toFixed(1);}),x.color,x.seg===s.best?2.5:1.5));});
+  buildChart('speed',labels,dsSpd,{min:0});
+  // TB
+  var dsTB=[];
+  if(showRef){dsTB.push(line(ref.throttle.map(function(v){return+(v*100).toFixed(1);}),'#ff3333',2,[4,3]));dsTB.push(line(ref.brake.map(function(v){return+(v*-100).toFixed(1);}),'#ff3333',2,[2,2]));}
+  aligned.forEach(function(x){
+    var w=x.seg===s.best?2:1.2;
+    dsTB.push(line(x.al.throttle.map(function(v){return+(v*100).toFixed(1);}),x.color,w));
+    dsTB.push(line(x.al.brake.map(function(v){return+(v*-100).toFixed(1);}),x.color,w,[2,2]));
+  });
+  buildChart('tb',labels,dsTB,{min:-100,max:100,ticks:{callback:function(v){return Math.abs(v)+'%';}}});
+  // Gear
+  var dsGear=[];
+  if(showRef&&ref.gear)dsGear.push({data:ref.gear.map(function(v){return Math.round(v);}),borderColor:'#ff3333',borderWidth:2,pointRadius:0,tension:0,stepped:'before',borderDash:[4,3],fill:false,label:''});
+  aligned.forEach(function(x){
+    if(!x.al.gear)return;
+    dsGear.push({data:x.al.gear.map(function(v){return Math.round(v);}),borderColor:x.color,borderWidth:x.seg===s.best?2:1.2,pointRadius:0,tension:0,stepped:'before',fill:false,label:''});
+  });
+  buildChart('gear',labels,dsGear,{min:0,max:7,stepSize:1,ticks:{callback:function(v){return v===0?'N':Number.isInteger(v)?v+'':'';}},grid:{color:function(ctx){return ctx.tick.value>0?'rgba(255,255,255,.06)':'rgba(255,255,255,.12)';}}});
+  // Steer
+  var dsSteer=[];
+  if(showRef&&ref.steer)dsSteer.push(line(ref.steer.map(function(v){return+(v*57.296).toFixed(1);}),'#ff3333',2,[4,3]));
+  aligned.forEach(function(x){if(!x.al.steer)return;dsSteer.push(line(x.al.steer.map(function(v){return+(v*57.296).toFixed(1);}),x.color,x.seg===s.best?2:1.2));});
+  buildChart('steer',labels,dsSteer,{});
+  // Delta
+  var dsDelta=[];
+  if(bestAl){
+    if(showRef)dsDelta.push(line(ref.elapsed.map(function(t,i){return+(t-bestAl.elapsed[i]).toFixed(3);}),'#ff3333',2,[4,3]));
+    aligned.forEach(function(x){
+      if(x.seg===s.best){dsDelta.push(line(new Array(N).fill(0),x.color,1.5,[4,4]));return;}
+      dsDelta.push(line(x.al.elapsed.map(function(t,i){return+(t-bestAl.elapsed[i]).toFixed(3);}),x.color,1.2));
+    });
+  }
+  buildChart('delta',labels,dsDelta,{});
+}
+
+function buildChart(key,labels,datasets,yExtra){
+  if(charts[key])charts[key].destroy();
+  var ctx=document.getElementById('c-'+key).getContext('2d');
+  var yBase={grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#405060',font:{size:9}},border:{color:'#1e2330'}};
+  var yOpts=Object.assign({},yBase);
+  if(yExtra.min!==undefined)yOpts.min=yExtra.min;
+  if(yExtra.max!==undefined)yOpts.max=yExtra.max;
+  if(yExtra.ticks)yOpts.ticks=Object.assign({},yBase.ticks,yExtra.ticks);
+  if(yExtra.stepSize)yOpts.ticks=Object.assign({},yOpts.ticks,{stepSize:yExtra.stepSize});
+  if(yExtra.grid)yOpts.grid=Object.assign({},yBase.grid,yExtra.grid);
+  charts[key]=new Chart(ctx,{type:'line',data:{labels:labels,datasets:datasets},options:{
+    responsive:true,maintainAspectRatio:false,animation:{duration:150},
+    plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,callbacks:{title:function(items){return items[0].label+'km';}}}},
+    scales:{x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#405060',font:{size:9},maxTicksLimit:15},border:{color:'#1e2330'}},y:yOpts}
+  }});
+}
+
+// ── Zones ────────────────────────────────────────────────────────
+function renderZones(s){
+  var el=document.getElementById('zones');el.innerHTML='';
+  if(!s.best)return;
+  var bAl=alignSeg(s.channels,s.best);
+  var cAl=ref&&refActive?ref:null;
+  if(!cAl&&s.segs.length>1){var mid=s.segs.filter(function(x){return x!==s.best;})[Math.floor(s.segs.length*.5)];if(mid)cAl=alignSeg(s.channels,mid);}
+  if(!cAl){el.innerHTML='<div style="color:#405060;font-size:11px">Load a reference CSV to see loss zones.</div>';return;}
+  var zones=lossZones(bAl,cAl,s.trackLen);
+  if(!zones.length){el.innerHTML='<div style="color:#405060;font-size:11px">No significant zones found.</div>';return;}
+  zones.forEach(function(z,i){
+    var mi=Math.floor((z.si+z.ei)/2);
+    var spA=(bAl.speed[mi]*3.6).toFixed(0),spB=(cAl.speed[mi]*3.6).toFixed(0);
+    var tA=(bAl.throttle[mi]*100).toFixed(0),tB=(cAl.throttle[mi]*100).toFixed(0);
+    var div=document.createElement('div');div.className='zone';
+    div.innerHTML='<div class="zone-n">'+(i+1)+'</div>'
+      +'<div><div class="zone-loc">'+z.start.toFixed(0)+'m → '+z.end.toFixed(0)+'m</div>'
+      +'<div class="zone-det">Spd: <b style="color:#00cc66">'+spA+'</b> vs <b style="color:#ff4444">'+spB+'</b> km/h · Thr: <b style="color:#00cc66">'+tA+'%</b> vs <b style="color:#ff4444">'+tB+'%</b></div></div>'
+      +'<div class="zone-loss">+'+z.loss.toFixed(3)+'s</div>';
+    el.appendChild(div);
+  });
+}
+
+// ── Lang ─────────────────────────────────────────────────────────
+function setLang(lang){
+  coachLang=lang;
+  document.getElementById('lang-pt').classList.toggle('on',lang==='pt');
+  document.getElementById('lang-en').classList.toggle('on',lang==='en');
+  document.getElementById('btn-coach').textContent=lang==='pt'?'🏁 Analisar com IA':'🏁 Analyse with AI';
+  document.getElementById('ai-loading-txt').textContent=lang==='pt'?'O engenheiro virtual está a analisar...':'The virtual engineer is analysing...';
+}
+
+// ── Coach ────────────────────────────────────────────────────────
+async function doCoach(){
+  var s=sessions[ai];if(!s)return;
+  var btn=document.getElementById('btn-coach');
+  btn.disabled=true;
+  document.getElementById('ai-loading').style.display='flex';
+  document.getElementById('ai-result').style.display='none';
+
+  var times=s.segs.map(function(x){return x.lapTime;}).sort(function(a,b){return a-b;});
+  var best=times[0],avg=times.reduce(function(a,b){return a+b;},0)/times.length;
+  var clean=times.filter(function(t){return t<best*1.06;});
+  var std=Math.sqrt(clean.reduce(function(acc,t){return acc+(t-avg)*(t-avg);},0)/clean.length);
+  var bAl=s.best?alignSeg(s.channels,s.best):null;
+  var cAl=ref&&refActive?ref:null;
+  if(!cAl&&s.segs.length>1){var mid=s.segs.filter(function(x){return x!==s.best;})[Math.floor(s.segs.length*.4)];if(mid)cAl=alignSeg(s.channels,mid);}
+  var cLabel=ref&&refActive?'reference pilot':'median lap';
+  var zones=bAl&&cAl?lossZones(bAl,cAl,s.trackLen):[];
+  var zt=zones.slice(0,4).map(function(z,i){
+    var mi=Math.floor((z.si+z.ei)/2);
+    var spA=bAl?(bAl.speed[mi]*3.6).toFixed(1):'?',spB=cAl?(cAl.speed[mi]*3.6).toFixed(1):'?';
+    var tA=bAl?(bAl.throttle[mi]*100).toFixed(0):'?',tB=cAl?(cAl.throttle[mi]*100).toFixed(0):'?';
+    return 'Zone '+(i+1)+': '+z.start.toFixed(0)+'m-'+z.end.toFixed(0)+'m | Loss: '+z.loss.toFixed(3)+'s | Speed: '+spA+' vs '+spB+' km/h | Throttle: '+tA+'% vs '+tB+'%';
+  }).join('\n')||'No significant zones.';
+
+  var isPt=coachLang==='pt';
+
+  // ── Filtrar voltas para análise ─────────────────────────────
+  // Excluir: volta 0, voltas inactivas, outliers (>20% acima da melhor)
+  var validSegs=s.segs.filter(function(seg){
+    return seg.lapLabel>0                          // excluir volta 0
+        && lapActive[seg.lapLabel]!==false          // só voltas activas
+        && seg.lapTime < best*1.20;                 // excluir outliers
+  });
+  var validTimes=validSegs.map(function(x){return x.lapTime;}).sort(function(a,b){return a-b;});
+  var vBest=validTimes[0]||best;
+  var vAvg=validTimes.length?validTimes.reduce(function(a,b){return a+b;},0)/validTimes.length:avg;
+  var vClean=validTimes.filter(function(t){return t<vBest*1.06;});
+  var vStd=vClean.length?Math.sqrt(vClean.reduce(function(acc,t){return acc+(t-vAvg)*(t-vAvg);},0)/vClean.length):std;
+
+  // Volta de referência para comparação
+  var hasRef=ref&&refActive;
+  var refLabel=hasRef?('CSV de referência ('+refN+')'):'volta mediana das seleccionadas';
+
+  // Dados das voltas seleccionadas para o prompt
+  var selLapsSummary=validSegs.slice(0,8).map(function(seg){
+    return 'V'+seg.lapLabel+': '+fmtT(seg.lapTime)+(seg===s.best?' ★':'');
+  }).join(', ');
+
+  // Comparação específica: melhor activa vs referência ou pior activa
+  var bestActiveSeg=validSegs.length?validSegs.reduce(function(a,b){return a.lapTime<b.lapTime?a:b;}):s.best;
+  var bestActiveAl=bestActiveSeg?alignSeg(s.channels,bestActiveSeg):bAl;
+  var compAl=hasRef?ref:cAl;
+
+  // Recalcular zonas com as voltas seleccionadas
+  var activeZones=bestActiveAl&&compAl?lossZones(bestActiveAl,compAl,s.trackLen):zones;
+  var zt2=activeZones.slice(0,4).map(function(z,i){
+    var mi=Math.floor((z.si+z.ei)/2);
+    var spA=bestActiveAl?(bestActiveAl.speed[mi]*3.6).toFixed(1):'?';
+    var spB=compAl?(compAl.speed[mi]*3.6).toFixed(1):'?';
+    var tA=bestActiveAl?(bestActiveAl.throttle[mi]*100).toFixed(0):'?';
+    var tB=compAl?(compAl.throttle[mi]*100).toFixed(0):'?';
+    var brA=bestActiveAl?(bestActiveAl.brake[mi]*100).toFixed(0):'?';
+    var brB=compAl?(compAl.brake[mi]*100).toFixed(0):'?';
+    return 'Zona '+(i+1)+': '+z.start.toFixed(0)+'m-'+z.end.toFixed(0)+'m | Perda: '+z.loss.toFixed(3)+'s | Vel: '+spA+' vs '+spB+' km/h | Acel: '+tA+'% vs '+tB+'% | Travão: '+brA+'% vs '+brB+'%';
+  }).join('\n')||'Sem zonas significativas.';
+
+  var prompt=isPt
+    ?'És um engenheiro de corridas a analisar telemetria do iRacing. Responde em português de Portugal, directo e técnico. Usa os números fornecidos.\n\n'
+      +'SESSÃO:\nCarro: '+s.meta.car+' | Pista: '+s.meta.track+' | Piloto: '+s.meta.driver+'\n'
+      +'Voltas analisadas (excluindo V0 e outliers): '+validSegs.length+' de '+s.segs.length+'\n'
+      +'Voltas seleccionadas: '+selLapsSummary+'\n'
+      +'Melhor volta activa: '+fmtT(vBest)+' | Média: '+fmtT(vAvg)+' | Gap: +'+(vAvg-vBest).toFixed(3)+'s | σ: '+vStd.toFixed(3)+'s\n'
+      +(hasRef?'Referência: '+refLabel+'\n':'')
+      +'\nCOMPARAÇÃO (melhor volta seleccionada vs '+refLabel+'):\n'+zt2+'\n\n'
+      +'Escreve feedback técnico em 4 secções. Usa ## como cabeçalho de cada secção:\n'
+      +'## Resumo\n(2-3 frases com números específicos sobre consistência e ritmo)\n'
+      +'## Zonas Críticas\n(analisa cada zona de perda: o que acontece, onde e porquê)\n'
+      +'## Prioridades\n(top 3 coisas a melhorar com ganho estimado em segundos)\n'
+      +'## Próxima Sessão\n(1-2 acções concretas e específicas para focar)'
+    :'You are a sim racing engineer analysing iRacing telemetry. Reply in English, direct and technical. Use the provided numbers.\n\n'
+      +'SESSION:\nCar: '+s.meta.car+' | Track: '+s.meta.track+' | Driver: '+s.meta.driver+'\n'
+      +'Laps analysed (excluding L0 and outliers): '+validSegs.length+' of '+s.segs.length+'\n'
+      +'Selected laps: '+selLapsSummary+'\n'
+      +'Best active lap: '+fmtT(vBest)+' | Avg: '+fmtT(vAvg)+' | Gap: +'+(vAvg-vBest).toFixed(3)+'s | σ: '+vStd.toFixed(3)+'s\n'
+      +(hasRef?'Reference: '+refLabel+'\n':'')
+      +'\nCOMPARISON (best selected lap vs '+refLabel+'):\n'+zt2+'\n\n'
+      +'Write technical feedback in 4 sections using ## as header:\n'
+      +'## Summary\n(2-3 sentences with specific numbers on consistency and pace)\n'
+      +'## Critical Zones\n(analyse each loss zone: what happens, where and why)\n'
+      +'## Priorities\n(top 3 things to improve with estimated gain in seconds)\n'
+      +'## Next Session\n(1-2 concrete specific actions to focus on)';
+
+  try{
+    var resp=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({max_tokens:800,messages:[{role:'user',content:prompt}]})});
+    var rawText=await resp.text();
+    var text='';
+    try{
+      var data=JSON.parse(rawText);
+      text=(data.content||[]).map(function(b){return b.text||'';}).join('')||rawText;
+    }catch(e){
+      // se não é JSON, usar o texto directamente
+      text=rawText;
+    }
+    if(!text||text.trim()==='') text='## Aviso\nSem resposta do servidor. Tenta novamente.';
+    renderCoach(text,isPt);
+  }catch(err){
+    document.getElementById('ai-summary').innerHTML='<span style="color:#ff4">Error: '+err.message+'</span>';
+    document.getElementById('ai-result').style.display='block';
+  }
+  document.getElementById('ai-loading').style.display='none';
+  btn.disabled=false;
+}
+
+function renderCoach(text,isPt){
+  // Dividir por secções ##
+  var parts=text.split(/^##\s+/m).filter(function(p){return p.trim();});
+  var secColors=['#00aaff','#ff6b6b','#ffee00','#00cc66'];
+  var secIcons=['📊','⚠','🎯','▶'];
+  var html='';
+  if(parts.length<=1){
+    // texto sem secções - mostrar directamente
+    html=text.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\n\n/g,'<br/><br/>').replace(/\n/g,'<br/>');
+    document.getElementById('ai-summary').innerHTML=html;
+    document.getElementById('ai-sections').innerHTML='';
+  } else {
+    // primeira parte vai para o resumo
+    var first=parts[0].replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br/>');
+    document.getElementById('ai-summary').innerHTML=first||'';
+    // restantes vão para secções
+    var sectionsHtml='';
+    parts.slice(1).forEach(function(part,i){
+      var lines=part.split('\n');
+      var title=lines[0].trim();
+      var body=lines.slice(1).join('\n').trim()
+        .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+        .replace(/^- (.+)$/gm,'<li>$1</li>')
+        .replace(/(<li>[\s\S]*<\/li>)/g,'<ul>$1</ul>')
+        .replace(/\n\n/g,'<br/><br/>')
+        .replace(/\n/g,'<br/>');
+      sectionsHtml+='<div class="sec"><div class="sec-hd" style="color:'+secColors[i%4]+'">'+secIcons[i%4]+' '+title+'</div><div class="sec-bd">'+body+'</div></div>';
+    });
+    document.getElementById('ai-sections').innerHTML=sectionsHtml;
+  }
+  document.getElementById('ai-result').style.display='block';
+}
+</script>
+</body>
+</html>
